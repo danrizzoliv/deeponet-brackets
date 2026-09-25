@@ -1,0 +1,14 @@
+# code only: data, models and logs are archived on Zenodo
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.pt
+*.npz
+*.pkl
+*.log
+*.tar
+*.tar.gz
+*.zip
+dataset*/
+figs/
+*:Zone.Identifier
