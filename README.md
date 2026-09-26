@@ -8,7 +8,7 @@ Computer Sciences (ICMC), University of São Paulo, 2026.
 - **Advisor:** Prof. Dr. João Luís Garcia Rosa
 - **Co-advisor:** Prof. Dr. Alberto Costa Nogueira Junior
 - **Monograph:** TODO: link to the deposited version
-- **Dataset and trained model:** https://doi.org/10.5281/zenodo.XXXXXXX (TODO)
+- **Dataset and trained model:** https://doi.org/10.5281/zenodo.22981969
 
 The version of the code used in the monograph is tagged **`tcc-2026`**.
 Later commits may extend it; to reproduce the reported results, check out
