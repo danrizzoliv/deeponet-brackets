@@ -1,5 +1,10 @@
 # A DeepONet Surrogate Model for Stress Fields in Parametric Bracket Families: The Cost of Geometric Generalization
 
+<p align="center">
+  <img src="docs/images/hero.png" width="80%" alt="von Mises stress field of a bracket">
+  <br><em>Finite element von Mises field of one of the 55,803 cases.</em>
+</p>
+
 Code accompanying the monograph of the same title, submitted to the MBA in
 Artificial Intelligence and Big Data of the Institute of Mathematical and
 Computer Sciences (ICMC), University of São Paulo, 2026.
@@ -23,6 +28,11 @@ Every training case is a finite element solution produced by the pipeline
 in this repository, verified for discretization against a criterion fixed
 in advance.
 
+<p align="center">
+  <img src="docs/images/architecture.png" width="90%" alt="DeepONet architecture">
+  <br><em>Geometry enters the branch as explicit parameters; the trunk receives the coordinates and the distances to the holes; the two meet in an element-wise fusion followed by a non-linear head.</em>
+</p>
+
 The main results reported in the monograph:
 
 | | relative L² field error |
@@ -37,6 +47,16 @@ The main results reported in the monograph:
   than a specialist trained on the U family alone.
 - The peak stress is **systematically underestimated**, by 22% on average.
   The model is suitable for design **screening**, not for verification.
+
+<p align="center">
+  <img src="docs/images/prediction.png" width="95%" alt="DeepONet prediction against the finite element reference">
+  <br><em>Final model on a validation case: prediction, finite element reference and absolute error.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/error_decomposition.png" width="90%" alt="Decomposition of the error">
+  <br><em>Where the error lies. Expanding the dataset reduced only the part caused by geometric variation; the part the architecture cannot represent, even with the geometry fixed, did not move.</em>
+</p>
 
 ## Repository contents
 
@@ -74,6 +94,11 @@ five times smaller and sufficient for training.
 
 The families are not balanced: generation was stopped before every family
 reached the same count. The monograph discusses the effect of this.
+
+<p align="center">
+  <img src="docs/images/families.png" width="75%" alt="The six bracket families">
+  <br><em>The six parametric families: L, Z, U, T, O and G.</em>
+</p>
 
 Each `sample_NNNNNN.npz` contains:
 
