@@ -50,7 +50,7 @@ The main results reported in the monograph:
 
 <p align="center">
   <img src="docs/images/prediction.png" width="95%" alt="DeepONet prediction against the finite element reference">
-  <br><em>Final model on a validation case: prediction, finite element reference and absolute error.</em>
+  <br><em>Final model on a well-predicted validation case of the ribbed family (G): prediction, finite element reference and absolute error. Relative L2 error 0.186 against a family mean of 0.272; peak within 6.5%.</em>
 </p>
 
 <p align="center">
