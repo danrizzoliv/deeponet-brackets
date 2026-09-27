@@ -3,9 +3,9 @@
 """
 VISUAL INSPECTION — simple brackets (L/Z/U).
 
-  python inspecionar_simples.py --ckpt deeponet_simples.pt \\
+  python inspect_cases.py --ckpt deeponet_simples.pt \\
       --dataset ~/projetos/simples/dataset_v1 --lista
-  python inspecionar_simples.py --ckpt ... --dataset ... \\
+  python inspect_cases.py --ckpt ... --dataset ... \\
       --split val --caso 3 [--salvar val3.png]
 
 2x2 layout: BCs (clamp blue / loaded face orange / arrows F and M) |
@@ -24,8 +24,8 @@ import torch
 
 torch.set_num_threads(int(os.environ.get("TORCH_THREADS", "2")))
 
-from dataset_simples import (case_branch, trunk_feats, denormalize_vm)
-from train_simples import SimpleDeepONet, predict_full
+from bracket_dataset import (case_branch, trunk_feats, denormalize_vm)
+from train_deeponet import SimpleDeepONet, predict_full
 
 FAMILIES = ["L", "Z", "U", "T", "O", "G", "E",
             "F", "X", "J", "W", "S"]

@@ -62,16 +62,16 @@ The main results reported in the monograph:
 
 | Script | Role |
 |---|---|
-| `gen_simples.py` | Parametric generation, meshing (gmsh) and finite element solution (FEniCSx) of the brackets. Writes one `.npz` per case. |
-| `compactar_dataset.py` | Builds the reduced dataset used for training: drops the mesh connectivity and writes float32. |
-| `dataset_simples.py` | Branch and trunk encodings, normalization statistics, and the PyTorch dataset. |
-| `train_simples.py` | The DeepONet and its training loop, with checkpoint resume. |
-| `treino_colab.ipynb` | Notebook that trained the final model on a Colab GPU. |
-| `inspecionar_simples.py` | Per-case inspection and figures; with `--lista`, evaluates every case and prints one line per case. |
-| `analisa_lista.py` | Aggregates the `--lista` output into the per-family table of the monograph. |
-| `ablacao_p2.py` | The single-variable architectural ablation on 300 quadratic-element cases. |
-| `bench_inferencia.py` | Inference timing against the solver. |
-| `figs_fixo.py`, `figs_final.py`, `figs_par.py`, `figs_bc_malha.py`, `fig_hero.py`, `render_familias.py` | The field, boundary-condition, mesh and geometry figures of the monograph. |
+| `generate_dataset.py` | Parametric generation, meshing (gmsh) and finite element solution (FEniCSx) of the brackets. Writes one `.npz` per case. |
+| `compact_dataset.py` | Builds the reduced dataset used for training: drops the mesh connectivity and writes float32. |
+| `bracket_dataset.py` | Branch and trunk encodings, normalization statistics, and the PyTorch dataset. |
+| `train_deeponet.py` | The DeepONet and its training loop, with checkpoint resume. |
+| `train_colab.ipynb` | Notebook that trained the final model on a Colab GPU. |
+| `inspect_cases.py` | Per-case inspection and figures; with `--lista`, evaluates every case and prints one line per case. |
+| `summarize_listing.py` | Aggregates the `--lista` output into the per-family table of the monograph. |
+| `ablation_p2.py` | The single-variable architectural ablation on 300 quadratic-element cases. |
+| `benchmark_inference.py` | Inference timing against the solver. |
+| `figs_fixed.py`, `figs_final.py`, `figs_pair.py`, `figs_bc_mesh.py`, `fig_hero.py`, `render_families.py` | The field, boundary-condition, mesh and geometry figures of the monograph. |
 
 ## Requirements
 
@@ -122,7 +122,7 @@ of them set that path as `BASE`. Adjust it if yours differs.
 **1. Generate the data.** One run per family, with quadratic elements:
 
 ```bash
-python gen_simples.py --out-dir exp_L --fam L --seed 0 --i0 0 --n 2000 --grau 2
+python generate_dataset.py --out-dir exp_L --fam L --seed 0 --i0 0 --n 2000 --grau 2
 ```
 
 The fixed-geometry datasets were generated with `--geo-fixa <seed>`, which
@@ -138,10 +138,10 @@ not an identical one; exact reproduction of the figures requires the
 archived files.
 
 **2. Train.** The final model was trained on a Colab T4 with
-`treino_colab.ipynb`, using:
+`train_colab.ipynb`, using:
 
 ```bash
-python -u train_simples.py --dataset dataset_v4_treino --device cuda \
+python -u train_deeponet.py --dataset dataset_v4_treino --device cuda \
   --batch 32 --n-query 1024 --repeats 1 \
   --dist-furos --decoder prod --eval-every 10 --save-every 10 \
   --final-eval 400 --resume --out deeponet_6fam_55k.pt
@@ -155,13 +155,13 @@ it must be done as a second run with `--resume --lr 3e-4`.
 **3. Evaluate by family.**
 
 ```bash
-python inspecionar_simples.py --ckpt deeponet_6fam_55k.pt \
+python inspect_cases.py --ckpt deeponet_6fam_55k.pt \
   --dataset dataset_v4_p2 --lista > lista_55k.txt
-python analisa_lista.py lista_55k.txt
+python summarize_listing.py lista_55k.txt
 ```
 
-**4. Ablation, figures and timing.** `ablacao_p2.py`, the `figs_*.py`
-scripts and `bench_inferencia.py`, each documented at its top.
+**4. Ablation, figures and timing.** `ablation_p2.py`, the `figs_*.py`
+scripts and `benchmark_inference.py`, each documented at its top.
 
 ## A note on names
 
@@ -175,9 +175,28 @@ and changing them would break compatibility:
   `furos_carga`, which are written in the 55,803 archived files.
 - **The checkpoint key** `split["treino"]`.
 - **The training log lines**, such as `época` and `relL2 treino méd=`, which
-  the notebook and `ablacao_p2.py` parse, and which appear in the archived
+  the notebook and `ablation_p2.py` parse, and which appear in the archived
   training log.
-- **The file names** of the scripts.
+
+The script names were translated to English after the monograph was
+submitted. The tag `tcc-2026` keeps the original names; the code is otherwise
+identical:
+
+| Tag `tcc-2026` | Current name |
+|---|---|
+| `gen_simples.py` | `generate_dataset.py` |
+| `dataset_simples.py` | `bracket_dataset.py` |
+| `train_simples.py` | `train_deeponet.py` |
+| `inspecionar_simples.py` | `inspect_cases.py` |
+| `compactar_dataset.py` | `compact_dataset.py` |
+| `analisa_lista.py` | `summarize_listing.py` |
+| `ablacao_p2.py` | `ablation_p2.py` |
+| `bench_inferencia.py` | `benchmark_inference.py` |
+| `figs_fixo.py` | `figs_fixed.py` |
+| `figs_par.py` | `figs_pair.py` |
+| `figs_bc_malha.py` | `figs_bc_mesh.py` |
+| `render_familias.py` | `render_families.py` |
+| `treino_colab.ipynb` | `train_colab.ipynb` |
 
 A short glossary: *caso* = case, *lista* = listing, *salvar* = save,
 *furo* = hole, *carga* = load, *fixação* = fixation, *família* = family,

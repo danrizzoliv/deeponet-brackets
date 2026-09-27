@@ -12,9 +12,9 @@ Neither saw these cases in training — those of fixo_U400 are the validation
 partition of that model, and the frozen geometry does not belong to the
 sampling of var_U400.
 
-    python figs_par.py                 # table + figure of the typical case
-    python figs_par.py --caso 37       # forces a case
-    python figs_par.py --modo extremo  # case where the difference is largest
+    python figs_pair.py                 # table + figure of the typical case
+    python figs_pair.py --caso 37       # forces a case
+    python figs_pair.py --modo extremo  # case where the difference is largest
 """
 
 import os
@@ -26,8 +26,8 @@ for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
     os.environ.setdefault(_v, "2")
 torch.set_num_threads(2)
 
-from dataset_simples import case_branch, trunk_feats, denormalize_vm
-from train_simples import SimpleDeepONet, predict_full
+from bracket_dataset import case_branch, trunk_feats, denormalize_vm
+from train_deeponet import SimpleDeepONet, predict_full
 
 BASE = os.path.expanduser("~/projetos/tcc_brackets")
 DS = os.path.join(BASE, "fixo_U400")
@@ -154,7 +154,7 @@ def main():
         surf = grid(pv, nodes, cells, "x", np.zeros(nodes.shape[0]))
         pl.add_mesh(surf, color="lightgray", opacity=0.55,
                     smooth_shading=False)
-        from inspecionar_simples import mark_cylinder_np, _arrow
+        from inspect_cases import mark_cylinder_np, _arrow
         fixm = np.zeros(nodes.shape[0], bool)
         for h in np.asarray(d["furos_fix"], float).reshape(-1, 8):
             fixm |= mark_cylinder_np(nodes, h)

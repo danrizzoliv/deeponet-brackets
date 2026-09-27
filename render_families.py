@@ -6,9 +6,9 @@ RENDER OF THE SIX GEOMETRIES — one clean image per family, for illustration.
 No stress field, no boundary conditions: only the part, in isometric view,
 white background and identical framing. Meant for the catalogue slide.
 
-    python render_familias.py                 # picks the finest mesh
-    python render_familias.py --casos L=2007,O=8042
-    python render_familias.py --angulo 30     # rotates the camera about z
+    python render_families.py                 # picks the finest mesh
+    python render_families.py --casos L=2007,O=8042
+    python render_families.py --angulo 30     # rotates the camera about z
 
 Generates figs/geom_{L,Z,U,T,O,G}.png (1400x1400).
 """

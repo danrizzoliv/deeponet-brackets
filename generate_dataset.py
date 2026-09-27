@@ -32,7 +32,7 @@ Geometry saved in the .npz for the DeepONet branch:
   and the boxes of the BC faces (for visual inspection): fixed_box, load_box.
 
 Usage:
-    python gen_simples.py --out-dir ~/projetos/simples/dataset_v1 \
+    python generate_dataset.py --out-dir ~/projetos/simples/dataset_v1 \
         --n 1000 --seed 0 [--check-lin]
 """
 

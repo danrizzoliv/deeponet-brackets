@@ -9,11 +9,11 @@ study that rejected them. This script repeats the same variants on
 that the conclusions do not depend on a reference with flattened peaks.
 
 It also adds the SIREN trunk, whose original run was interrupted at
-epoch 119 of 300. The current train_simples.py already implements the
+epoch 119 of 300. The current train_deeponet.py already implements the
 initialization of Sitzmann et al. (2020).
 
-    python ablacao_p2.py --src dataset_v4_treino --device cuda
-    python ablacao_p2.py --src dataset_v4_treino --so base prod siren
+    python ablation_p2.py --src dataset_v4_treino --device cuda
+    python ablation_p2.py --src dataset_v4_treino --so base prod siren
 
 Writes ablacao_p2_{variant}.log and, at the end, ablacao_p2_resumo.txt.
 """
@@ -26,7 +26,7 @@ import subprocess
 import numpy as np
 
 # same variants as the original ladder (ablation table), plus the SIREN.
-# All other options stay at the train_simples.py defaults, as in the
+# All other options stay at the train_deeponet.py defaults, as in the
 # original ladder: batch 16, repeats 4, n-query 1024, lr 1e-3.
 VARIANTS = [
     ("base",    "Baseline (inner product)",      []),
@@ -104,7 +104,7 @@ def main():
             continue
         # --resume: if the machine restarts in the middle of a variant, it
         # continues from the last saved epoch instead of starting from scratch
-        cmd = ["python", "-u", "train_simples.py",
+        cmd = ["python", "-u", "train_deeponet.py",
                "--dataset", args.dst, "--device", args.device,
                "--epochs", str(args.epochs), "--final-eval", "0",
                "--save-every", "10", "--resume",

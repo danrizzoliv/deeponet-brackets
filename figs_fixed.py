@@ -7,7 +7,7 @@ For each family: runs --lista for the fixo_800 model, picks the TYPICAL case
 (relL2 and peak error both close to the median, peak >= 50 MPa) and saves the
 6-panel figure. Same criterion as the figures of the final model.
 
-    python figs_fixo.py
+    python figs_fixed.py
 """
 
 import os
@@ -24,7 +24,7 @@ def run_listing(fam):
     if not os.path.exists(log):
         with open(log, "w") as fh:
             subprocess.run(
-                ["python", "-u", os.path.join(BASE, "inspecionar_simples.py"),
+                ["python", "-u", os.path.join(BASE, "inspect_cases.py"),
                  "--ckpt", os.path.join(BASE, f"deeponet_fixo800_{fam}_e600.pt"),
                  "--dataset", os.path.join(BASE, f"fixo_{fam}"), "--lista"],
                 stdout=fh, stderr=subprocess.DEVNULL, cwd=BASE, check=True)
@@ -56,7 +56,7 @@ def main():
 
         out_path = os.path.join(BASE, "figs", f"fixo800_{fam}_caso{case_i}.png")
         subprocess.run(
-            ["python", os.path.join(BASE, "inspecionar_simples.py"),
+            ["python", os.path.join(BASE, "inspect_cases.py"),
              "--ckpt", os.path.join(BASE, f"deeponet_fixo800_{fam}_e600.pt"),
              "--dataset", os.path.join(BASE, f"fixo_{fam}"),
              "--split", "val", "--caso", str(case_i), "--salvar", out_path],

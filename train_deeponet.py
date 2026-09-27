@@ -7,7 +7,7 @@ Back to basics, on purpose: branch MLP + trunk MLP + dot product.
 No Fourier, no PointNet, no local features. Geometry enters as
 explicit parameters in the branch (one-hot family + dimensions).
 
-    python train_simples.py --dataset ~/projetos/simples/dataset_v1 \\
+    python train_deeponet.py --dataset ~/projetos/simples/dataset_v1 \\
         --epochs 300 --out deeponet_simples.pt
 """
 
@@ -27,7 +27,7 @@ from torch.utils.data import DataLoader
 
 torch.set_num_threads(int(os.environ.get("TORCH_THREADS", "2")))
 
-from dataset_simples import (list_samples, split_files, compute_stats,
+from bracket_dataset import (list_samples, split_files, compute_stats,
                              SimpleDataset, case_branch, trunk_feats,
                              denormalize_vm)
 

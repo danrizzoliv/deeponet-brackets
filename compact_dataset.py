@@ -9,11 +9,11 @@ stress and the case metadata. By removing `cells` and writing in float32, the
 set typically shrinks by a factor of 3 to 5, which makes the upload to
 Colab feasible.
 
-The compact dataset does NOT work with inspecionar_simples.py nor for the
+The compact dataset does NOT work with inspect_cases.py nor for the
 figures — for those, keep using the original.
 
-    python compactar_dataset.py --src dataset_v4_p2 --dst dataset_v4_treino
-    python compactar_dataset.py --src dataset_v4_p2 --dst d4 --jobs 4
+    python compact_dataset.py --src dataset_v4_p2 --dst dataset_v4_treino
+    python compact_dataset.py --src dataset_v4_p2 --dst d4 --jobs 4
 """
 
 import os

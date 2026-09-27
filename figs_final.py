@@ -3,7 +3,7 @@
 """
 FIGURES OF THE MULTI-FAMILY MODEL — one per family.
 
-Same criterion as figs_fixo.py: runs --lista, picks the TYPICAL case of each
+Same criterion as figs_fixed.py: runs --lista, picks the TYPICAL case of each
 family (relL2 and peak error close to the median of that family, peak
 >= 50 MPa) and saves the two three-panel figures.
 
@@ -24,7 +24,7 @@ def run_listing(ckpt, dataset, log):
     if not os.path.exists(log):
         with open(log, "w") as fh:
             subprocess.run(
-                ["python", "-u", os.path.join(BASE, "inspecionar_simples.py"),
+                ["python", "-u", os.path.join(BASE, "inspect_cases.py"),
                  "--ckpt", ckpt, "--dataset", dataset, "--lista"],
                 stdout=fh, stderr=subprocess.DEVNULL, cwd=BASE, check=True)
     by_fam = {f: [] for f in FAMILIES}
@@ -67,7 +67,7 @@ def main():
 
         out_path = os.path.join(BASE, "figs", f"{args.prefixo}_{fam}.png")
         subprocess.run(
-            ["python", os.path.join(BASE, "inspecionar_simples.py"),
+            ["python", os.path.join(BASE, "inspect_cases.py"),
              "--ckpt", ckpt, "--dataset", ds,
              "--split", "val", "--caso", str(case_i), "--salvar", out_path],
             stdout=subprocess.DEVNULL, cwd=BASE, check=True)

@@ -7,7 +7,7 @@ Measures how long the model takes to predict the full von Mises field of a
 case, under the same conditions in which the solver was timed: CPU,
 two threads, one case at a time.
 
-    python bench_inferencia.py --ckpt deeponet_6fam_e2000.pt \\
+    python benchmark_inference.py --ckpt deeponet_6fam_e2000.pt \\
         --dataset ~/projetos/tcc_brackets/dataset_v3_p2 --n 50
 """
 
@@ -21,8 +21,8 @@ for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
     os.environ.setdefault(_v, "2")
 torch.set_num_threads(2)
 
-from dataset_simples import case_branch, trunk_feats, denormalize_vm
-from train_simples import SimpleDeepONet, predict_full
+from bracket_dataset import case_branch, trunk_feats, denormalize_vm
+from train_deeponet import SimpleDeepONet, predict_full
 
 
 def main():

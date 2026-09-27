@@ -8,8 +8,8 @@ Generates separate images of the same case, for the methodology section:
   figs/mesh_{FAM}_{i}.png   tetrahedral mesh
   figs/vm_{FAM}_{i}.png     FEA von Mises field
 
-    python figs_bc_malha.py --dataset ~/projetos/tcc_brackets/dataset_v3_p2 --caso 0
-    python figs_bc_malha.py --dataset ... --caso 2000 --angulo 40
+    python figs_bc_mesh.py --dataset ~/projetos/tcc_brackets/dataset_v3_p2 --caso 0
+    python figs_bc_mesh.py --dataset ... --caso 2000 --angulo 40
 """
 
 import os
