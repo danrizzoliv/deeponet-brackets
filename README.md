@@ -5,211 +5,181 @@
   <br><em>Finite element von Mises field of one of the 55,803 cases.</em>
 </p>
 
-Code accompanying the monograph of the same title, submitted to the MBA in
-Artificial Intelligence and Big Data of the Institute of Mathematical and
-Computer Sciences (ICMC), University of São Paulo, 2026.
+A neural operator that predicts the **full von Mises stress field** of a
+mechanical bracket from its geometry, load and material in **~50 ms**,
+against ~23 s for the finite element solution it was trained on. One model
+covers a catalogue of six structurally distinct parametric families.
+
+Code of the MBA monograph of the same title, MBA in Artificial Intelligence
+and Big Data, Institute of Mathematical and Computer Sciences (ICMC),
+University of São Paulo, 2026.
 
 - **Author:** Danilo Rizzo de Oliveira
 - **Advisor:** Prof. Dr. João Luís Garcia Rosa
 - **Co-advisor:** Prof. Dr. Alberto Costa Nogueira Junior
-- **Monograph:** TODO: link to the deposited version
 - **Dataset and trained model:** https://doi.org/10.5281/zenodo.22981969
+  (version 1.0 holds the delivered model; the revised checkpoint is not yet archived)
 
-The version of the code used in the monograph is tagged **`tcc-2026`**.
-Later commits may extend it; to reproduce the reported results, check out
-that tag.
+## Results
 
-## What this is
+| | Delivered model | **Revised model** |
+|---|---|---|
+| Relative L² field error, 8,370 validation cases | 0.252 | **0.193** |
+| Median signed peak error | −21.7% | **−7.5%** |
+| Median absolute peak error | 24.3% | **11.8%** |
+| Same architecture, geometry held fixed | 0.145 | **0.102** |
+| Share of the error caused by geometric variation | 42% | 47% |
+| Parameters | 145,282 | 145,666 |
 
-A DeepONet trained to predict the full von Mises stress field of a
-mechanical bracket from its geometry, load and material, over a catalogue
-of six structurally distinct parametric families (L, Z, U, T, O and G).
-Every training case is a finite element solution produced by the pipeline
-in this repository, verified for discretization against a criterion fixed
-in advance.
-
-<p align="center">
-  <img src="docs/images/architecture.png" width="90%" alt="DeepONet architecture">
-  <br><em>Geometry enters the branch as explicit parameters; the trunk receives the coordinates and the distances to the holes; the two meet in an element-wise fusion followed by a non-linear head.</em>
-</p>
-
-The main results reported in the monograph:
-
-| | relative L² field error |
-|---|---|
-| Final model, varying geometry (8,370 validation cases) | **0.252** |
-| Same architecture, geometry held fixed | 0.145 |
-
-- Geometric variation accounts for roughly **half** of the total error.
-  With the geometry fixed the model converges; with it varying, it begins
-  to overfit.
-- A single model over six families is **16% more accurate** on the U family
-  than a specialist trained on the U family alone.
-- The peak stress is **systematically underestimated**, by 22% on average.
-  The model is suitable for design **screening**, not for verification.
+- **The cost of geometric generalization is measured directly.** Holding
+  the geometry fixed while load and material vary isolates what geometric
+  variation adds to the error: about half of it, at full scale. In a paired
+  experiment, the model converges with the geometry fixed and begins to
+  overfit with it varying.
+- **Generality helps.** A single model over six families is 16% more
+  accurate on the U family than a specialist trained on that family alone.
+- **The revision was a loss, not a bigger network.** The delivered model
+  trained with the plain MSE on the log of the stress, which weighs a point
+  at 1 MPa like a point at 300 MPa. Weighting each point by its stress
+  (with a floor of 0.3 for the least stressed regions), plus three cheap
+  distance features, cut the field error by 23% and the peak bias by two
+  thirds, with 384 more parameters. The revised model is more accurate in
+  99% of the validation cases.
+- The peak is still **underestimated**, so the model is for design
+  **screening**, not for verification.
 
 <p align="center">
   <img src="docs/images/prediction.png" width="95%" alt="DeepONet prediction against the finite element reference">
-  <br><em>Final model on a well-predicted validation case of the ribbed family (G): prediction, finite element reference and absolute error. Relative L2 error 0.186 against a family mean of 0.272; peak within 6.5%.</em>
+  <br><em>Revised model on a typical validation case of the ribbed family (G): relative L² error 0.20, at the family median of 0.207. Prediction, finite element reference and absolute error.</em>
+</p>
+
+## The model
+
+<p align="center">
+  <img src="docs/images/architecture.png" width="92%" alt="Revised DeepONet architecture">
+  <br><em>Geometry enters the branch as eleven explicit parameters; the trunk receives the coordinates and five geometric features (the darker blocks were added by the revision); the two meet in an element-wise fusion and a non-linear head; the load magnitude is restored analytically.</em>
+</p>
+
+No signed distance field and no learned shape encoder: the cheapest
+geometric representation the literature allows, trained on a workstation
+and a rented T4.
+
+## Where the error lies
+
+<p align="center">
+  <img src="docs/images/error_decomposition.png" width="85%" alt="Decomposition of the error">
+  <br><em>The error split into what the reference solution itself resolves (P2 against P3), what the architecture misses even with the geometry fixed, and what geometric variation adds. The revised objective shrank the middle band most.</em>
 </p>
 
 <p align="center">
-  <img src="docs/images/error_decomposition.png" width="90%" alt="Decomposition of the error">
-  <br><em>Where the error lies. Expanding the dataset reduced only the part caused by geometric variation; the part the architecture cannot represent, even with the geometry fixed, did not move.</em>
+  <img src="docs/images/error_by_region.png" width="70%" alt="Local error by region">
+  <br><em>Local error around the fixation holes, the load holes and the concave edges, before and after the revision.</em>
 </p>
-
-## Repository contents
-
-| Script | Role |
-|---|---|
-| `generate_dataset.py` | Parametric generation, meshing (gmsh) and finite element solution (FEniCSx) of the brackets. Writes one `.npz` per case. |
-| `compact_dataset.py` | Builds the reduced dataset used for training: drops the mesh connectivity and writes float32. |
-| `bracket_dataset.py` | Branch and trunk encodings, normalization statistics, and the PyTorch dataset. |
-| `train_deeponet.py` | The DeepONet and its training loop, with checkpoint resume. |
-| `train_colab.ipynb` | Notebook that trained the final model on a Colab GPU. |
-| `inspect_cases.py` | Per-case inspection and figures; with `--lista`, evaluates every case and prints one line per case. |
-| `summarize_listing.py` | Aggregates the `--lista` output into the per-family table of the monograph. |
-| `ablation_p2.py` | The single-variable architectural ablation on 300 quadratic-element cases. |
-| `benchmark_inference.py` | Inference timing against the solver. |
-| `figs_fixed.py`, `figs_final.py`, `figs_pair.py`, `figs_bc_mesh.py`, `fig_hero.py`, `render_families.py` | The field, boundary-condition, mesh and geometry figures of the monograph. |
-
-## Requirements
-
-The generator needs FEniCSx (dolfinx) and gmsh; everything else needs
-PyTorch, NumPy and, for the figures, PyVista.
-
-TODO: add the exact environment, for example with
-`conda env export --no-builds > environment.yml` from the environment the
-work was run in.
 
 ## Data
 
-The dataset holds **55,803** cases, archived at the DOI above in two forms:
-the complete set, and a reduced set without the mesh connectivity, about
-five times smaller and sufficient for training.
+**55,803** finite element cases (FEniCSx, quadratic tetrahedra verified
+against cubic ones), archived at the DOI above in two forms: the complete
+set, and a set without the mesh connectivity, five times smaller and enough
+for training.
 
 | Family | L | Z | U | T | O | G | Total |
 |---|---|---|---|---|---|---|---|
 | Cases | 9,999 | 10,000 | 9,999 | 8,751 | 8,486 | 8,568 | **55,803** |
-
-The families are not balanced: generation was stopped before every family
-reached the same count. The monograph discusses the effect of this.
 
 <p align="center">
   <img src="docs/images/families.png" width="75%" alt="The six bracket families">
   <br><em>The six parametric families: L, Z, U, T, O and G.</em>
 </p>
 
-Each `sample_NNNNNN.npz` contains:
-
-| Field | Content |
-|---|---|
-| `nodes`, `cells` | Mesh vertices and tetrahedron connectivity |
-| `u`, `stress`, `von_mises` | Displacement, stress tensor and von Mises stress at the vertices |
-| `E`, `nu` | Elastic constants |
-| `loads`, `moments`, `l_ref` | Applied force and moment resultants, and the lever reference |
-| `familia` | Family index: 0=L, 1=Z, 2=U, 3=T, 4=O, 5=G |
-| `geo_params` | The eleven geometric parameters `[A, B, C, W, T, RF, RB, DF, DL, NF, NL]` |
-| `furos_fix`, `furos_carga` | Fixation and load holes, one row per hole: `[cx, cy, cz, ax, ay, az, r, half]` |
-| `load_centers`, `fixed_centers` | Hole centers |
-| `n_loads`, `n_nodes`, `n_cells`, `max_vm`, `max_disp` | Counts and summary values |
-
-## Reproducing the results
-
-The scripts assume the project lives in `~/projetos/tcc_brackets`; several
-of them set that path as `BASE`. Adjust it if yours differs.
-
-**1. Generate the data.** One run per family, with quadratic elements:
-
-```bash
-python generate_dataset.py --out-dir exp_L --fam L --seed 0 --i0 0 --n 2000 --grau 2
-```
-
-The fixed-geometry datasets were generated with `--geo-fixa <seed>`, which
-freezes the part and varies only load and material. TODO: record the seed
-used for each family.
-
-Generation is deterministic in its sampling: the geometry, load and
-material of each case derive from the seed and the case index. It is **not**
-reproducible at the level of the mesh, because gmsh optimizes the mesh
-without a fixed thread count and the fillet operation may fall back to a
-smaller radius. Regenerating yields a statistically equivalent dataset,
-not an identical one; exact reproduction of the figures requires the
+Each `sample_NNNNNN.npz` holds the mesh (`nodes`, `cells`), the fields at
+the vertices (`u`, `stress`, `von_mises`), the material (`E`, `nu`), the
+load (`loads`, `moments`, `l_ref`), the family index (`familia`: 0=L, 1=Z,
+2=U, 3=T, 4=O, 5=G), the eleven geometric parameters (`geo_params`:
+`A, B, C, W, T, RF, RB, DF, DL, NF, NL`) and the holes (`furos_fix`,
+`furos_carga`: one row `[cx, cy, cz, ax, ay, az, r, half]` per fixation or
+load hole). Those field names are Portuguese because they are written in the
 archived files.
 
-**2. Train.** The final model was trained on a Colab T4 with
-`train_colab.ipynb`, using:
+## Reproducing
+
+Requirements: FEniCSx (dolfinx), gmsh and mpi4py for the generator; PyTorch
+and NumPy for everything else; PyVista for the figures; SciPy for the
+paired tests. Several scripts default to the author's project folder
+(`PROJECT_DIR = ~/projetos/tcc_brackets`); adjust it if yours differs.
+
+**1. Generate** (one run per family, quadratic elements; the sampling is
+deterministic by seed and case index):
 
 ```bash
-python -u train_deeponet.py --dataset dataset_v4_treino --device cuda \
-  --batch 32 --n-query 1024 --repeats 1 \
-  --dist-furos --decoder prod --eval-every 10 --save-every 10 \
-  --final-eval 400 --resume --out deeponet_6fam_55k.pt
+python generate_dataset.py --out-dir exp_L --family L --seed 0 --i0 0 --n 2000 --degree 2
+python compact_dataset.py --src exp_L --dst exp_L_train     # training copy without connectivity
+python concave_edges.py --dataset exp_L_train               # edges for --edge-distance
 ```
 
-It ran for **3,187 epochs**: the first 989 at the default learning rate of
-10⁻³, then resumed with `--lr 3e-4`, which restarts the rate and the
-scheduler. Running the notebook alone does not reproduce that restart;
-it must be done as a second run with `--resume --lr 3e-4`.
+`--fixed-geometry <seed>` freezes the part and varies only load and
+material; `--check-degree 3` re-solves each case with cubic elements on the
+same mesh (the verification). The mesh itself is not bit-reproducible
+(gmsh threads, fillet fallbacks), so regenerating gives a statistically
+equivalent dataset; exact figures need the archived files.
 
-**3. Evaluate by family.**
+**2. Train** the revised model (as on Colab, `train_colab.ipynb`):
 
 ```bash
-python inspect_cases.py --ckpt deeponet_6fam_55k.pt \
-  --dataset dataset_v4_p2 --lista > lista_55k.txt
-python summarize_listing.py lista_55k.txt
+python train_deeponet.py --dataset dataset_v4_treino --device cuda \
+  --batch 32 --n-query 1024 --repeats 1 --decoder prod \
+  --hole-distances --edge-distance --hole-proximity \
+  --stress-weight 1 --weight-floor 0.3 \
+  --epochs 4000 --lr 3e-4 --eval-every 10 --save-every 10 \
+  --final-eval 400 --resume --out revised.pt
 ```
 
-**4. Ablation, figures and timing.** `ablation_p2.py`, the `figs_*.py`
-scripts and `benchmark_inference.py`, each documented at its top.
+The delivered model drops the last two feature flags and the weighting; it
+ran 3,187 epochs, at 10⁻³ until epoch 989 and then resumed once with
+`--lr 3e-4`, which restarts the rate and the scheduler. Training writes
+`<out>_val_errors.csv`, the per-case validation error.
 
-## A note on names
+**3. Evaluate:**
 
-The code is in English, but some names were deliberately kept in Portuguese
-because they are part of the interface with the published data and model,
-and changing them would break compatibility:
+```bash
+python inspect_cases.py --ckpt revised.pt --dataset dataset_v4_treino --listing > listing.txt
+python summarize_listing.py listing.txt          # per-family table
+python compare_models.py delivered_val_errors.csv revised_val_errors.csv   # paired test
+python diagnose_error.py --ckpt revised.pt --dataset dataset_v4_treino   # error by region
+```
 
-- **Command-line options**, such as `--caso`, `--lista`, `--salvar` and
-  `--dist-furos`. They are also saved inside the checkpoint.
-- **The `.npz` field names**, such as `familia`, `furos_fix` and
-  `furos_carga`, which are written in the 55,803 archived files.
-- **The checkpoint key** `split["treino"]`.
-- **The training log lines**, such as `época` and `relL2 treino méd=`, which
-  the notebook and `ablation_p2.py` parse, and which appear in the archived
-  training log.
+## Scripts
 
-The script names were translated to English after the monograph was
-submitted. The tag `tcc-2026` keeps the original names; the code is otherwise
-identical:
-
-| Tag `tcc-2026` | Current name |
+| Script | Role |
 |---|---|
-| `gen_simples.py` | `generate_dataset.py` |
-| `dataset_simples.py` | `bracket_dataset.py` |
-| `train_simples.py` | `train_deeponet.py` |
-| `inspecionar_simples.py` | `inspect_cases.py` |
-| `compactar_dataset.py` | `compact_dataset.py` |
-| `analisa_lista.py` | `summarize_listing.py` |
-| `ablacao_p2.py` | `ablation_p2.py` |
-| `bench_inferencia.py` | `benchmark_inference.py` |
-| `figs_fixo.py` | `figs_fixed.py` |
-| `figs_par.py` | `figs_pair.py` |
-| `figs_bc_malha.py` | `figs_bc_mesh.py` |
-| `render_familias.py` | `render_families.py` |
-| `treino_colab.ipynb` | `train_colab.ipynb` |
+| `generate_dataset.py` | Parametric geometry, meshing (gmsh) and finite element solution (FEniCSx); one `.npz` per case. |
+| `compact_dataset.py` | Training copy of a dataset: no connectivity, float32. |
+| `concave_edges.py` | Recovers the concave edges of every case from the generator's seed, verified against the stored parameters. |
+| `bracket_dataset.py` | Branch and trunk encodings, distance features, normalization, PyTorch dataset. |
+| `train_deeponet.py` | The DeepONet, the stress-weighted loss, the training loop with resume, and the checkpoint loader. |
+| `train_colab.ipynb` | Training on a Colab GPU, resilient to session drops (delivered or revised model). |
+| `inspect_cases.py` | Per-case figures, or a listing of every case with its error. |
+| `summarize_listing.py` | Per-family table from a listing. |
+| `evaluate_checkpoint.py` | Per-case validation error of a checkpoint, as CSV. |
+| `compare_models.py` | Paired comparison of two models (Wilcoxon), by family. |
+| `diagnose_error.py` | Error by region, by stress level and against each geometric parameter. |
+| `median_case_images.py` | Figures of the typical (median-error) case of each family. |
+| `verification_report.py` | Audit of a dataset: P2 against P3 table, generation time, parallel processes. |
+| `ablation_p2.py` | The exploratory single-variable architecture study. |
+| `benchmark_inference.py` | Inference timing. |
+| `figs_*.py`, `fig_hero.py`, `render_families.py` | The remaining figures of the monograph. |
 
-A short glossary: *caso* = case, *lista* = listing, *salvar* = save,
-*furo* = hole, *carga* = load, *fixação* = fixation, *família* = family,
-*treino* = training, *época* = epoch, *méd* = mean.
+## Versions and names
 
-Some module docstrings describe an earlier stage of the work — for
-example, three families instead of six, or a dot-product decoder — and
-have not been updated. The monograph is the authoritative description of
-the final configuration.
+The tag **`tcc-2026`** is the code of the version submitted to the examining
+committee. Since then, the stress-weighted loss and the edge and proximity
+features were added, and the code was translated: script names, option
+names (`--dist-furos` → `--hole-distances`, `--caso` → `--case`, `--lista` →
+`--listing`, `--grau` → `--degree`, ...), log lines and output files. The old
+option names are still accepted, and checkpoints, logs and CSVs written
+before the translation load unchanged.
 
 ## Citation
-
-TODO: fill in once the monograph is deposited.
 
 ```bibtex
 @misc{oliveira2026deeponet,
