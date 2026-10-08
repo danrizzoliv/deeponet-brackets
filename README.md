@@ -52,7 +52,7 @@ Per family:
   element pipeline: 438 times faster.
 
 <p align="center">
-  <img src="docs/images/prediction_fixed.png" width="95%" alt="Prediction with the geometry fixed">
+  <img src="docs/images/prediction_fixed_bc.png" width="95%" alt="Prediction with the geometry fixed">
   <br><em>Geometry fixed, ribbed family (G): a validation case of median error (relative L² 0.10): boundary conditions, prediction and finite element reference.</em>
 </p>
 
