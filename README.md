@@ -57,8 +57,8 @@ Per family:
 </p>
 
 <p align="center">
-  <img src="docs/images/prediction_varying.png" width="95%" alt="Prediction with the geometry varying">
-  <br><em>Geometry varying, L family: a validation case of median error (relative L² 0.16), on a part the model has never seen.</em>
+  <img src="docs/images/prediction_varying_bc.png" width="95%" alt="Prediction with the geometry varying">
+  <br><em>Geometry varying, L family: a validation case of median error (relative L² 0.16), on a part the model has never seen: boundary conditions, prediction and finite element reference.</em>
 </p>
 
 ## The model
