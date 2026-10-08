@@ -53,7 +53,7 @@ Per family:
 
 <p align="center">
   <img src="docs/images/prediction_fixed.png" width="95%" alt="Prediction with the geometry fixed">
-  <br><em>Geometry fixed, ribbed family (G): a validation case of median error (relative L² 0.10). Prediction, finite element reference and absolute error.</em>
+  <br><em>Geometry fixed, ribbed family (G): a validation case of median error (relative L² 0.10): boundary conditions, prediction and finite element reference.</em>
 </p>
 
 <p align="center">
