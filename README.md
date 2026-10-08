@@ -51,14 +51,33 @@ Per family:
 - **Speed.** 51.8 ms per full field on a CPU against 22.7 s for the finite
   element pipeline: 438 times faster.
 
+## Predictions
+
+Validation cases of median error in their family: boundary conditions,
+DeepONet prediction and finite element reference, on a shared colour scale.
+
+**Geometry fixed** (one part per family; only load and material vary):
+
 <p align="center">
-  <img src="docs/images/prediction_fixed_bc.png" width="95%" alt="Prediction with the geometry fixed">
-  <br><em>Geometry fixed, ribbed family (G): a validation case of median error (relative L² 0.10): boundary conditions, prediction and finite element reference.</em>
+  <img src="docs/images/prediction_fixed_bc.png" width="95%" alt="Prediction with the geometry fixed, G family">
+  <br><em>Ribbed family (G), relative L² error 0.10.</em>
 </p>
 
 <p align="center">
-  <img src="docs/images/prediction_varying_bc.png" width="95%" alt="Prediction with the geometry varying">
-  <br><em>Geometry varying, L family: a validation case of median error (relative L² 0.16), on a part the model has never seen: boundary conditions, prediction and finite element reference.</em>
+  <img src="docs/images/prediction_fixed_U.png" width="95%" alt="Prediction with the geometry fixed, U family">
+  <br><em>Clevis family (U), relative L² error 0.08.</em>
+</p>
+
+**Geometry varying** (parts the model has never seen):
+
+<p align="center">
+  <img src="docs/images/prediction_varying_bc.png" width="95%" alt="Prediction with the geometry varying, L family">
+  <br><em>L family, relative L² error 0.16.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/prediction_varying_Z.png" width="95%" alt="Prediction with the geometry varying, Z family">
+  <br><em>Z family, relative L² error 0.15.</em>
 </p>
 
 ## The model
