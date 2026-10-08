@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-COMPACT — version of the dataset containing only what TRAINING uses.
+Builds the reduced (training) version of a dataset: the second form of the
+archived data, about five times smaller than the complete set.
 
-Each .npz stores the tetrahedron connectivity (`cells`), which is the largest
-field in the file and serves only to render figures: training uses nodes,
-stress and the case metadata. By removing `cells` and writing in float32, the
-set typically shrinks by a factor of 3 to 5, which makes the upload to
-Colab feasible.
+Each sample_NNNNNN.npz of the complete dataset stores the tetrahedron
+connectivity (`cells`), the largest field in the file, which only the
+figures need. This script copies every .npz of <src>/samples to
+<dst>/samples keeping only the fields that training reads (KEEP: nodes, von
+Mises, family, geometry, load, material and holes), drops the mesh
+connectivity and the other unused fields (u, stress, ...), and converts
+float64 to float32 and int64 to int32 (except `familia`). The set typically
+shrinks 3-5x, which makes the upload to Colab feasible. Field names are
+unchanged.
 
-The compact dataset does NOT work with inspect_cases.py nor for the
-figures — for those, keep using the original.
+The reduced dataset is enough for train_deeponet.py and the evaluation of
+errors, but NOT for anything that needs the mesh (inspect_cases.py figures,
+figs_*.py): use the complete dataset for those.
 
+Usage (dataset_v4_p2 / dataset_v4_treino are the author's data folders):
     python compact_dataset.py --src dataset_v4_p2 --dst dataset_v4_treino
     python compact_dataset.py --src dataset_v4_p2 --dst d4 --jobs 4
 """
@@ -22,10 +29,14 @@ import argparse
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 
-# everything case_branch and trunk_feats read
+# everything case_branch and trunk_features read. Field names of the
+# archived data (familia, furos_fix, furos_carga, escala are kept in
+# Portuguese); "escala" (scale) is copied when present, but
+# generate_dataset.py does not write it.
 KEEP = ("nodes", "von_mises", "familia", "geo_params", "loads", "moments",
-          "E", "nu", "furos_fix", "furos_carga", "load_centers", "n_nodes",
-          "l_ref", "escala")
+        "E", "nu", "furos_fix", "furos_carga", "load_centers", "n_nodes",
+        "l_ref", "escala")
+KEY_FAMILY = "familia"          # field name of the archived data
 
 
 def compact(pair):
@@ -39,7 +50,7 @@ def compact(pair):
             v = d[k]
             if v.dtype == np.float64:
                 v = v.astype(np.float32)
-            elif v.dtype == np.int64 and k != "familia":
+            elif v.dtype == np.int64 and k != KEY_FAMILY:
                 v = v.astype(np.int32)
             out[k] = v
         np.savez_compressed(dst, **out)
@@ -50,10 +61,14 @@ def compact(pair):
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True, help="source dataset")
-    ap.add_argument("--dst", required=True, help="compact dataset to create")
-    ap.add_argument("--jobs", type=int, default=2)
+    ap = argparse.ArgumentParser(
+        description="Writes the reduced training copy of a dataset.")
+    ap.add_argument("--src", required=True,
+                    help="complete dataset (folder with samples/)")
+    ap.add_argument("--dst", required=True,
+                    help="reduced dataset to create")
+    ap.add_argument("--jobs", type=int, default=2,
+                    help="worker processes")
     args = ap.parse_args()
 
     src = os.path.join(os.path.expanduser(args.src), "samples")
@@ -63,7 +78,7 @@ def main():
     if not files:
         raise SystemExit(f"no .npz in {src}")
 
-    # report of the fields of the first file, for checking
+    # fields of the first file, for checking
     d0 = np.load(files[0], allow_pickle=True)
     print(f"{len(files)} files\nfields in the original:")
     for k in d0.files:

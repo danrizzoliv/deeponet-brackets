@@ -1,39 +1,67 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SIMPLE PARAMETRIC BRACKET GENERATOR — L, Z and U — v2: HOLES + FILLETS.
+Parametric bracket generator: geometry (gmsh/OpenCASCADE), mesh and linear
+elastic finite element solution (FEniCSx) of one bracket per case.
 
-Like real engineering brackets:
-  - FIXATION HOLES in the base plate (1, 2 or 4, as they fit): the clamp is
-    applied on the CYLINDRICAL SHELL of the holes (RBE2 style, as in SimJEB);
-  - LOAD HOLE in the free member: F and M applied on the hole shell with the
-    exact traction t = F/S + a×r (RBE3 style, as in SimJEB);
-  - FILLETS at the concave corners between members (sampled radius), removing
-    the sharp-corner singularity; if OCC rejects the fillet for a combination
-    of dimensions, it tries a smaller radius and, as a last resort, proceeds
-    without (RF=0 recorded in geo_params).
+Twelve parametric families are available (L, Z, U, T, O, G, E, F, X, J, W, S;
+see `sample_geometry`); the 55,803-case dataset uses the first six (L, Z, U,
+T, O, G), one run per family with `--family`. Each case draws its family,
+dimensions, holes and fillet radii, a force and a moment (random directions)
+and a material (E log-uniform, nu uniform) from `default_rng(seed + i)`, so
+the sampling of case i depends only on the seed and the index. The geometry
+changes from case to case, so every case has its own mesh, stored in its .npz.
 
-Replaces SimJEB's CAD by gmsh primitives (fused boxes), keeping all the rest
-of the validated pipeline: CG+GAMG solver with nullspace, moment applied as
-traction t(x) = F/S + a × r with a = K⁻¹M (zero force, exact moment),
-variable material and compatible .npz format.
+Boundary conditions:
+  - the fixation holes in the base are clamped on their cylindrical shells
+    (u = 0, RBE2-like, as in SimJEB);
+  - the load is applied through an RBE3-style distributed coupling on the
+    shells of the load hole(s): the traction t(x) = F/S + a × r, with
+    a = K⁻¹M, r measured from the centroid of the loaded surface S and
+    K its second-moment tensor, has resultant F and moment M exactly; with
+    several load holes (the clevis U mirrors them on both walls) the total F
+    and M are spread over the whole group.
 
-Each sample draws: family (L/Z/U), dimensions (A, B, C, W, T), load
-(F, M), material (E, nu). EACH SAMPLE HAS ITS OWN MESH (the geometry
-changes), so nodes/cells go inside each .npz.
+Geometry: fused boxes/wedges with holes and cut-outs. The concave edges get
+a fillet of sampled radius RF and the remaining edges a small edge break RB.
+Both fillets are transactional: the model is saved before the operation and
+restored if OCC fails, and the operation is retried with reduced radii
+(RF: 1, 0.65, 0.40, 0.22; RB: 1, 0.5, 0.25, 0.12); if every radius fails the
+case goes on without it. The radii actually used are written to
+geo_params[5:7] (0 = no fillet).
 
-Canonical boundary conditions (the same in all families):
-  - CLAMP: lower face (z=0) of the base plate;
-  - LOAD: free face of the last member (top of the vertical flange in the L,
-    tip of the upper flange in the Z, top of the second wall in the U), with F and M.
+Elements: Lagrange P1, P2 or P3 for the displacement (`--degree`; the
+dataset uses P2). Von Mises and stress are projected onto P1 and stored at the
+mesh vertices; the CG + GAMG solver uses the rigid-body near-nullspace.
+`--check-degree N` solves the same case on the same mesh also with degree N
+and reports the peak difference and the relative L2 difference
+(p-refinement check, independent of mesh reproducibility). `--fixed-geometry
+SEED` freezes the geometry for the whole batch and varies only load and
+material (the fixed-geometry datasets). `--check-lin` checks linearity on the
+first case.
 
-Geometry saved in the .npz for the DeepONet branch:
-  familia (0=L, 1=Z, 2=U), geo_params = [A, B, C, W, T] in mm,
-  and the boxes of the BC faces (for visual inspection): fixed_box, load_box.
+Output in --out-dir:
+  samples/sample_NNNNNN.npz   one case (fields: nodes, cells, u, stress,
+                              von_mises, E, nu, loads, moments, l_ref,
+                              familia, geo_params, furos_fix, furos_carga,
+                              load_centers, fixed_centers, n_loads, n_nodes,
+                              n_cells, max_vm, max_disp)
+  samples/conv_NNNNNN_gN.npz  --check-degree result for case NNNNNN, degree N
+  manifest.csv                one row per case (status, load, material, size)
+  meta.json                   families, seed and sampling ranges
+geo_params = [A, B, C, W, T, RF, RB, DF, DL, NF, NL] (mm, counts); the .npz
+field names (familia, furos_fix, furos_carga, ...) are those of the archived
+data and are kept in Portuguese.
 
 Usage:
-    python generate_dataset.py --out-dir ~/projetos/simples/dataset_v1 \
-        --n 1000 --seed 0 [--check-lin]
+    python generate_dataset.py --out-dir exp_L --family L --seed 0 \
+        --i0 0 --n 2000 --degree 2
+    python generate_dataset.py --out-dir conv_L --family L --n 20 \
+        --degree 2 --check-degree 3
+    python generate_dataset.py --out-dir fixed_L --family L --n 500 \
+        --degree 2 --fixed-geometry 123
+Old option names (--grau, --conv-grau, --geo-fixa, --fam, --h-fator) are
+still accepted.
 """
 
 import os
@@ -63,7 +91,11 @@ ITER_OPTS = {
 }
 
 FAMILIES = ["L", "Z", "U", "T", "O", "G", "E",
-            "F", "X", "J", "W", "S"]
+            "F", "X", "J", "W", "S"]       # the dataset uses the first six
+
+MANIFEST_FILE = "manifest.csv"
+META_FILE = "meta.json"
+LEGACY_MANIFEST_FILE = "manifest_simples.csv"   # name written by the old code
 
 
 def rigid_body_nullspace(V):
@@ -91,19 +123,35 @@ def rigid_body_nullspace(V):
 
 # --------------------------------------------------------- bracket families
 def sample_geometry(rng, forced_fam=None):
-    """Samples family, dimensions, holes and fillet.
-    Families: 0=L, 1=Z, 2=U(clevis), 3=T(inner wall), 4=O(omega/hat),
-    5=G(ribbed L/triangular gusset), 6=E(bent-sheet channel with notches
-    and a large hole in the web).
-    Returns (fam, params(11), boxes, fillet_edges, fixed_holes, load_holes):
-      params = [A, B, C, W, T, RF, RB, DF, DL, NF, NL]; C is reused per
-      family (Z: flange depth; T: wall position; O: foot
-      length; G: rib depth; C: flange length; A: angle in
-      degrees; B: tube length; D: cradle radius; K: tie-rod
-      length; X: length of the 2nd wall; L/U: 0).
-      *_holes = dicts {center, axis, radius, half} (cutting/BC cylinders)
-      fillet_edges = (x0, z0) for concave lines along y (backward
-      compatible) or ("x"|"y"|"z", c1, c2, len_min) for an arbitrary direction.
+    """Samples family, dimensions, holes and fillet radii of one bracket.
+
+    Families (index = position in FAMILIES): 0=L (base + wall), 1=Z (lower
+    flange + web + upper flange), 2=U (clevis: base + two walls), 3=T (inner
+    wall on the base), 4=O (omega/hat: two feet + bridge), 5=G (L with a
+    triangular gusset rib), 6=E (bent-sheet channel with notches and a large
+    load hole in the web), 7=F (flat link plate), 8=X (angle with chamfered
+    base corners), 9=J (angle with a circular window in the wall), 10=W (flat
+    plate with a rounded rectangular window), 11=S (angle with a recessed,
+    stepped base). The dataset uses 0-5.
+    `forced_fam` overrides the family; the family draw is consumed anyway, so
+    the rest of the random stream of a case index does not change.
+
+    Must use only `np` from the module namespace: concave_edges.py extracts
+    and executes this function without the FEniCSx/gmsh imports.
+
+    Returns (fam, params, boxes, edges, fixed_holes, load_holes):
+      params = [A, B, C, W, T, RF, RB, DF, DL, NF, NL] (float64): base length,
+        wall height, family-specific length C, width, thickness, concave
+        fillet radius, edge-break radius, fixation and load hole diameters,
+        numbers of fixation and load holes. C is: Z upper-flange depth, T wall
+        position, O foot length, G rib depth, E notch width, X chamfer leg,
+        J window radius, W window length, S step length; 0 for L, U, F.
+      boxes = solids for build_mesh: (x, y, z, dx, dy, dz) boxes, 7-tuples
+        for the gusset wedge, and dicts {"wedge"/"box"/"cyl": ..., "cut",
+        "rot", "pivot", "trans"}, {"cut_cyl": hole} or {"cut_box": box}.
+      edges = concave edges to fillet: (x0, z0) for a line along y (old
+        format) or ("x"|"y"|"z", c1, c2, min_length).
+      *_holes = dicts {center, axis, radius, half} (cutting/BC cylinders).
     """
     fam = int(rng.integers(0, 12))          # always consumes the draw, to
     if forced_fam is not None:            # keep the rest of the random
@@ -118,13 +166,13 @@ def sample_geometry(rng, forced_fam=None):
     DF = float(min(rng.uniform(0.50, 1.40) * T, 0.26 * W))   # fixation diam.
     DL = float(min(rng.uniform(1.00, 1.80) * DF, 0.30 * W))  # load diam.
 
-    def cil(cx, cy, cz, ax, ay, az, r, half):
+    def cylinder(cx, cy, cz, ax, ay, az, r, half):
         return {"center": [cx, cy, cz], "axis": [ax, ay, az],
                 "radius": r, "half": half}
 
     ys = [0.30 * W, 0.70 * W] if W >= 0.55 * 100.0 else [0.5 * W]
     C = 0.0
-    mirror = None                          # (x_mirror) for clevis/saddle
+    mirror = None                          # x of the mirror wall (clevis U)
     span = np.array([0, 1, 0], float)       # direction of the load group
     extent = W                              # usable extent for the group
     half_l = T                              # half-height of the load cylinder
@@ -241,7 +289,7 @@ def sample_geometry(rng, forced_fam=None):
         nl_fixed = 1
         DF = float(min(DF, 0.55 * (Fl - T), 0.22 * B))
         xf = T + 0.55 * (Fl - T)
-        fix_custom = [cil(xf, yy, zz, 0, 1, 0, DF / 2, T)
+        fix_custom = [cylinder(xf, yy, zz, 0, 1, 0, DF / 2, T)
                       for yy in (T / 2, W - T / 2)
                       for zz in (0.20 * B, 0.80 * B)]
 
@@ -292,7 +340,7 @@ def sample_geometry(rng, forced_fam=None):
         DL = float(min(rng.uniform(1.2, 2.2) * DF, 0.24 * W,
                        0.80 * (Bw - zj - Rj)))
         boxes = [(0, 0, 0, A, W, T), (0, 0, 0, T, W, Bw)]
-        cuts = [cil(T / 2, W / 2, zj, 1, 0, 0, Rj, 2.0 * T)]
+        cuts = [cylinder(T / 2, W / 2, zj, 1, 0, 0, Rj, 2.0 * T)]
         edges = [("y", T, T, 0.4 * W)]
         load_axis = [1, 0, 0]
         base_c = np.array([T / 2, W / 2, Bw - max(1.5 * DL, 0.10 * Bw)])
@@ -316,7 +364,7 @@ def sample_geometry(rng, forced_fam=None):
                        Lw, Ww - 2 * Rw, 1.4 * T),
                       (xw - Lw / 2 + Rw, yw - Ww / 2, -0.2 * T,
                        Lw - 2 * Rw, Ww, 1.4 * T)]
-        cuts = [cil(xw + sx * (Lw / 2 - Rw), yw + sy * (Ww / 2 - Rw),
+        cuts = [cylinder(xw + sx * (Lw / 2 - Rw), yw + sy * (Ww / 2 - Rw),
                       T / 2, 0, 0, 1, Rw, T)
                   for sx in (-1.0, 1.0) for sy in (-1.0, 1.0)]
         edges = []
@@ -366,7 +414,7 @@ def sample_geometry(rng, forced_fam=None):
         lo, hi = regions[0]
         xs = [lo, hi] if hi - lo >= 2.2 * DF else [0.5 * (lo + hi)]
     if xs is not None:
-        fixed_holes = [cil(xf, yf, T / 2, 0, 0, 1, DF / 2, T)
+        fixed_holes = [cylinder(xf, yf, T / 2, 0, 0, 1, DF / 2, T)
                      for xf in xs for yf in ys]
         NF = float(len(fixed_holes))
 
@@ -408,7 +456,7 @@ def build_mesh(boxes, edges, fixed_holes, load_holes, T, W, RF, RB,
     try:
         gmsh.option.setNumber("General.Terminal", 0)
         gmsh.model.add("b")
-        def _eh(c, k):
+        def _has(c, k):
             return isinstance(c, dict) and k in c
 
         def _prim(spec):
@@ -439,16 +487,16 @@ def build_mesh(boxes, edges, fixed_holes, load_holes, T, W, RF, RB,
             gmsh.model.occ.translate([(3, t)], xw_, yw_ + dyw, zw_)
             return t
 
-        def _corte(c):
-            return (_eh(c, "cut_cyl") or _eh(c, "cut_box")
+        def _is_cut(c):
+            return (_has(c, "cut_cyl") or _has(c, "cut_box")
                     or (isinstance(c, dict) and c.get("cut")))
 
-        adds = [c for c in boxes if not _corte(c)]
-        cuts = [c["cut_cyl"] for c in boxes if _eh(c, "cut_cyl")]
-        cut_boxes = [c["cut_box"] for c in boxes if _eh(c, "cut_box")]
+        adds = [c for c in boxes if not _is_cut(c)]
+        cuts = [c["cut_cyl"] for c in boxes if _has(c, "cut_cyl")]
+        cut_boxes = [c["cut_box"] for c in boxes if _has(c, "cut_box")]
         cut_specs = [c for c in boxes
                        if isinstance(c, dict) and c.get("cut")
-                       and not (_eh(c, "cut_cyl") or _eh(c, "cut_box"))]
+                       and not (_has(c, "cut_cyl") or _has(c, "cut_box"))]
         tags = [_prim(c) for c in adds]
         base = [(3, tags[0])]
         for t in tags[1:]:
@@ -539,17 +587,18 @@ def build_mesh(boxes, edges, fixed_holes, load_holes, T, W, RF, RB,
                 except Exception:
                     vol = _restore(snap)
 
-        # cut the BC holes and the purely geometric cuts (e.g.:
-        # the semicircular cradle of the clamp, which receives no BC)
-        cils = [(3, gmsh.model.occ.addBox(*b)) for b in cut_boxes]
-        cils += [(3, _prim(c)) for c in cut_specs]
+        # cut the BC holes and the purely geometric cut-outs (windows,
+        # notches, chamfers), which receive no BC
+        cutters = [(3, gmsh.model.occ.addBox(*b)) for b in cut_boxes]
+        cutters += [(3, _prim(c)) for c in cut_specs]
         for h in list(fixed_holes) + list(load_holes) + list(cuts):
             c, ax = np.array(h["center"], float), np.array(h["axis"], float)
             ax = ax / np.linalg.norm(ax)
             p0 = c - ax * h["half"] * 1.5
             d = ax * h["half"] * 3.0
-            cils.append((3, gmsh.model.occ.addCylinder(*p0, *d, h["radius"])))
-        obj, _ = gmsh.model.occ.cut([(3, vol)], cils)
+            cutters.append((3, gmsh.model.occ.addCylinder(*p0, *d,
+                                                          h["radius"])))
+        obj, _ = gmsh.model.occ.cut([(3, vol)], cutters)
         gmsh.model.occ.synchronize()
         vols = gmsh.model.getEntities(3)
         gmsh.model.addPhysicalGroup(3, [v[1] for v in vols], VOLUME_MARKER)
@@ -717,52 +766,75 @@ def solve_case(domain, fixed_holes, load_holes, F, M, E, nu, degree=1):
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(
+        description="Generates parametric bracket cases (gmsh + FEniCSx).")
     ap.add_argument("--out-dir", required=True)
-    ap.add_argument("--n", type=int, default=1000)
-    ap.add_argument("--i0", type=int, default=0)
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--n", type=int, default=1000,
+                    help="end index (exclusive) of the cases to generate")
+    ap.add_argument("--i0", type=int, default=0,
+                    help="first case index; > 0 appends to the manifest "
+                         "(resume)")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="case i uses default_rng(seed + i)")
     ap.add_argument("--f-min", type=float, default=200.0)
     ap.add_argument("--f-max", type=float, default=5000.0)
     ap.add_argument("--e-min", type=float, default=60_000.0)
     ap.add_argument("--e-max", type=float, default=300_000.0)
     ap.add_argument("--nu-min", type=float, default=0.20)
     ap.add_argument("--nu-max", type=float, default=0.45)
-    ap.add_argument("--check-lin", action="store_true")
-    ap.add_argument("--h-fator", type=float, default=1.0,
+    ap.add_argument("--check-lin", action="store_true",
+                    help="on the first case, checks vm(2F, 2M) = 2 vm(F, M)")
+    ap.add_argument("--mesh-factor", type=float, default=1.0,
                     help="element size factor (0.7 refines ~1.4x; "
-                         "1.0 = default mesh) — for the convergence study")
-    ap.add_argument("--grau", type=int, choices=[1, 2, 3], default=1,
-                    help="degree of the displacement elements: 2 = much "
-                         "cleaner stress target, solver ~4-8x slower")
-    ap.add_argument("--geo-fixa", type=int, default=None,
+                         "1.0 = default mesh), for the h-convergence study")
+    ap.add_argument("--degree", type=int, choices=[1, 2, 3], default=1,
+                    help="degree of the displacement elements (the dataset "
+                         "uses 2: much cleaner stress, solver ~4-8x slower)")
+    ap.add_argument("--fixed-geometry", type=int, default=None,
                     metavar="SEED",
-                    help="freezes the geometry (the same part in the whole batch), "
-                         "varying only load and material")
-    ap.add_argument("--fam", choices=FAMILIES, default=None,
-                    help="forces the family (L/Z/U) in the whole batch; without the "
-                         "flag, samples by index as before")
-    ap.add_argument("--conv-grau", type=int, default=None, choices=[2, 3],
-                    help="solves the SAME case (SAME mesh) also at this "
-                         "degree and reports dpeak and relL2 — convergence "
-                         "study by p-refinement without depending on "
-                         "mesh reproducibility")
+                    help="freezes the geometry (the same part in the whole "
+                         "batch, drawn from this seed), varying only load "
+                         "and material")
+    ap.add_argument("--family", choices=FAMILIES, default=None,
+                    help="forces the family in the whole batch; without it "
+                         "the family is sampled per case")
+    ap.add_argument("--check-degree", type=int, default=None, choices=[2, 3],
+                    help="solves the SAME case on the SAME mesh also at this "
+                         "degree and reports dpeak and relL2: convergence "
+                         "check by p-refinement, independent of mesh "
+                         "reproducibility")
+    # old (Portuguese) option names, still accepted
+    ap.add_argument("--h-fator", dest="mesh_factor", type=float,
+                    default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    ap.add_argument("--grau", dest="degree", type=int, choices=[1, 2, 3],
+                    default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    ap.add_argument("--geo-fixa", dest="fixed_geometry", type=int,
+                    default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    ap.add_argument("--fam", dest="family", choices=FAMILIES,
+                    default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    ap.add_argument("--conv-grau", dest="check_degree", type=int,
+                    choices=[2, 3], default=argparse.SUPPRESS,
+                    help=argparse.SUPPRESS)
     args = ap.parse_args()
-    if args.conv_grau is not None and args.conv_grau <= args.grau:
-        raise SystemExit(f"--conv-grau ({args.conv_grau}) must be GREATER than "
-                         f"--grau ({args.grau}): the higher degree is the reference")
+    if args.check_degree is not None and args.check_degree <= args.degree:
+        raise SystemExit(f"--check-degree ({args.check_degree}) must be "
+                         f"GREATER than --degree ({args.degree}): the higher "
+                         "degree is the reference")
 
     samples_dir = os.path.join(args.out_dir, "samples")
     os.makedirs(samples_dir, exist_ok=True)
-    with open(os.path.join(args.out_dir, "meta_simples.json"), "w") as f:
-        json.dump({"familias": FAMILIES, "seed": args.seed,
+    with open(os.path.join(args.out_dir, META_FILE), "w") as f:
+        json.dump({"families": FAMILIES, "seed": args.seed,
                    "f_min": args.f_min, "f_max": args.f_max,
                    "e_min": args.e_min, "e_max": args.e_max,
                    "nu_min": args.nu_min, "nu_max": args.nu_max}, f, indent=2)
-    manifest = os.path.join(args.out_dir, "manifest_simples.csv")
+    manifest = os.path.join(args.out_dir, MANIFEST_FILE)
+    legacy = os.path.join(args.out_dir, LEGACY_MANIFEST_FILE)
+    if args.i0 > 0 and not os.path.exists(manifest) and os.path.exists(legacy):
+        manifest = legacy            # resuming a run started by the old code
     fresh = not os.path.exists(manifest) or args.i0 == 0
     fout = open(manifest, "w" if fresh else "a", newline="")
-    wr = csv.DictWriter(fout, fieldnames=["id", "status", "familia", "F", "M",
+    wr = csv.DictWriter(fout, fieldnames=["id", "status", "family", "F", "M",
                                           "E", "nu", "n_nodes", "max_vm",
                                           "error"])
     if fresh:
@@ -772,14 +844,14 @@ def main():
     ok = fail = 0
     for i in range(args.i0, args.n):
         rng = np.random.default_rng(args.seed + i)
-        # --geo-fixa: the GEOMETRY comes from its own seed (identical in
+        # --fixed-geometry: the GEOMETRY comes from its own seed (identical in
         # all cases of the batch); load and material are still drawn per
         # case from `rng`. Isolates the geometric variability.
-        rng_geo = (rng if args.geo_fixa is None
-                   else np.random.default_rng(args.geo_fixa))
+        rng_geo = (rng if args.fixed_geometry is None
+                   else np.random.default_rng(args.fixed_geometry))
         fam, params, boxes, edges, fixed_holes, load_holes = \
-            sample_geometry(rng_geo, None if args.fam is None
-                              else FAMILIES.index(args.fam))
+            sample_geometry(rng_geo, None if args.family is None
+                            else FAMILIES.index(args.family))
         A, B, C, W, T, RF, RB, DF, DL, NF, NL = params
         dF = rng.normal(size=3); dF /= np.linalg.norm(dF)
         dM = rng.normal(size=3); dM /= np.linalg.norm(dM)
@@ -788,19 +860,21 @@ def main():
         M = float(rng.uniform(args.f_min, args.f_max) * lever0) * dM
         E = float(np.exp(rng.uniform(np.log(args.e_min), np.log(args.e_max))))
         nu = float(rng.uniform(args.nu_min, args.nu_max))
-        row = {"id": i, "familia": FAMILIES[fam],
+        row = {"id": i, "family": FAMILIES[fam],
                "F": f"{np.linalg.norm(F):.1f}", "M": f"{np.linalg.norm(M):.1f}",
                "E": f"{E:.0f}", "nu": f"{nu:.4f}"}
         t0 = time.time()
         try:
             domain, rf_used, rb_used = build_mesh(
                 boxes, edges, fixed_holes, load_holes, T, W, RF, RB,
-                h_factor=args.h_fator)
+                h_factor=args.mesh_factor)
             params[5] = rf_used          # effective concave RF
             params[6] = rb_used          # effective edge RB
             nodes, cells, u_arr, vm_arr, st6, lever, load_c = solve_case(
                 domain, fixed_holes, load_holes, F, M, E, nu,
-                degree=args.grau)
+                degree=args.degree)
+            # familia, furos_fix, furos_carga: field names of the archived
+            # data (kept in Portuguese; bracket_dataset.KEY_*)
             np.savez_compressed(
                 os.path.join(samples_dir, f"sample_{i:06d}.npz"),
                 nodes=nodes.astype(np.float32), cells=cells,
@@ -835,16 +909,16 @@ def main():
             if args.check_lin and i == args.i0:
                 _, _, _, vm2, _, _, _ = solve_case(
                     domain, fixed_holes, load_holes, 2 * F, 2 * M, E, nu,
-                    degree=args.grau)
+                    degree=args.degree)
                 rel = (np.linalg.norm(vm2 - 2 * vm_arr)
                        / (np.linalg.norm(2 * vm_arr) + 1e-30))
                 print(f"  [check-lin] ||vm(2L)-2vm(L)||/||2vm(L)|| = {rel:.2e} "
                       f"{'OK' if rel < 1e-6 else 'SUSPECT'}")
-            if args.conv_grau:
+            if args.check_degree:
                 t1 = time.time()
                 _, _, _, vm_hi, _, _, _ = solve_case(
                     domain, fixed_holes, load_holes, F, M, E, nu,
-                    degree=args.conv_grau)
+                    degree=args.check_degree)
                 # same mesh in both solutions and both projected onto
                 # degree-1 Lagrange at the vertices -> node-by-node relL2, without
                 # interpolation and without depending on reproducibility
@@ -852,22 +926,24 @@ def main():
                          / (np.linalg.norm(vm_hi) + 1e-30))
                 dp_c = (100.0 * (vm_arr.max() - vm_hi.max())
                         / (vm_hi.max() + 1e-30))
-                print(f"  [conv] {i:06d} {FAMILIES[fam]} degree {args.grau} vs "
-                      f"{args.conv_grau} | peak {vm_arr.max():.1f} vs "
+                print(f"  [conv] {i:06d} {FAMILIES[fam]} degree {args.degree} vs "
+                      f"{args.check_degree} | peak {vm_arr.max():.1f} vs "
                       f"{vm_hi.max():.1f} | dpeak {dp_c:+.1f}% | "
                       f"relL2 {rel_c:.4f} | "
                       f"{'PASS' if abs(dp_c) <= 5.0 else 'FAIL'} "
                       f"({time.time()-t1:.1f}s)")
-                # conv_ prefix (the training list_samples globs sample_*.npz,
-                # so this file never enters a training dataset)
+                # conv_ prefix: list_samples globs sample_*.npz, so this file
+                # never enters a training dataset. File name pattern and keys
+                # (grau, grau_conv, familia, dpico, rel_l2) are those of the
+                # archived data; verification tools glob conv_*_g*.npz
                 np.savez_compressed(
                     os.path.join(samples_dir,
-                                 f"conv_{i:06d}_g{args.conv_grau}.npz"),
+                                 f"conv_{i:06d}_g{args.check_degree}.npz"),
                     von_mises=vm_hi.astype(np.float32),
                     von_mises_ref=vm_arr.astype(np.float32),
                     nodes=nodes.astype(np.float32), cells=cells,
-                    grau=np.int32(args.grau),
-                    grau_conv=np.int32(args.conv_grau),
+                    grau=np.int32(args.degree),
+                    grau_conv=np.int32(args.check_degree),
                     familia=np.int32(fam),
                     geo_params=params.astype(np.float32),
                     loads=np.asarray(F, np.float32)[None],

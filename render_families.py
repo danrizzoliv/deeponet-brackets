@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RENDER OF THE SIX GEOMETRIES — one clean image per family, for illustration.
+GEOMETRY RENDERS: one clean image per family of dataset_v3_p2.
 
-No stress field, no boundary conditions: only the part, in isometric view,
-white background and identical framing. Meant for the catalogue slide.
+No stress field, no boundary conditions: only the part, in parallel
+isometric view, white background and identical framing, for the catalogue
+slide. dataset_v3_p2 holds six families (L, Z, U, T, O, G) in fixed index
+blocks (BLOCKS); for each, the case with the finest mesh among the first
+N_SCAN of its block is drawn, unless --cases fixes it.
 
     python render_families.py                 # picks the finest mesh
-    python render_families.py --casos L=2007,O=8042
-    python render_families.py --angulo 30     # rotates the camera about z
+    python render_families.py --cases L=2007,O=8042
+    python render_families.py --angle 30      # rotates the camera about z
 
-Generates figs/geom_{L,Z,U,T,O,G}.png (1400x1400).
+Writes PROJECT_DIR/figs/geom_<family>.png (1400x1400).
 """
 
 import os
@@ -24,16 +27,17 @@ import numpy as np
 BLOCKS = {"L": 2000, "Z": 4000, "U": 0, "T": 6000, "O": 8000, "G": 10000}
 N_SCAN = 80          # how many cases to look at to pick the finest mesh
 
-BASE = os.path.expanduser("~/projetos/tcc_brackets")
-SRC = os.path.join(BASE, "dataset_v3_p2", "samples")
-OUT = os.path.join(BASE, "figs")
+PROJECT_DIR = os.path.expanduser("~/projetos/tcc_brackets")  # author's project folder; adjust
+SRC = os.path.join(PROJECT_DIR, "dataset_v3_p2", "samples")
+OUT = os.path.join(PROJECT_DIR, "figs")
 
 PART_COLOR = "AEBECE"    # light steel; too dark swallows the details
 
 
-def choose_cases(fixed):
+def choose_cases(fixed, src=SRC):
     """Finest mesh among the first N_SCAN of each block: holes and
-    fillets come out round instead of polygonal."""
+    fillets come out round instead of polygonal. `fixed` maps family ->
+    case index chosen by the user."""
     chosen = {}
     for fam, i0 in BLOCKS.items():
         if fam in fixed:
@@ -41,7 +45,7 @@ def choose_cases(fixed):
             continue
         best, best_n = None, -1
         for i in range(i0, i0 + N_SCAN):
-            p = os.path.join(SRC, f"sample_{i:06d}.npz")
+            p = os.path.join(src, f"sample_{i:06d}.npz")
             if not os.path.exists(p):
                 continue
             n = int(np.load(p, allow_pickle=True)["n_nodes"])
@@ -55,17 +59,21 @@ def choose_cases(fixed):
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--casos", default="",
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--cases", default="",
                     help="fixes indices, e.g.: L=2007,O=8042")
-    ap.add_argument("--angulo", type=float, default=0.0,
+    ap.add_argument("--angle", type=float, default=0.0,
                     help="extra camera rotation about z (degrees)")
     ap.add_argument("--zoom", type=float, default=0.82,
                     help="<1 zooms out (more margin); >1 zooms in")
+    # option names before the translation
+    ap.add_argument("--casos", dest="cases", help=argparse.SUPPRESS)
+    ap.add_argument("--angulo", dest="angle", type=float,
+                    help=argparse.SUPPRESS)
     args = ap.parse_args()
 
     fixed = {}
-    for pair in filter(None, args.casos.split(",")):
+    for pair in filter(None, args.cases.split(",")):
         k, v = pair.split("=")
         fixed[k.strip().upper()] = int(v)
 
@@ -78,12 +86,12 @@ def main():
         nodes = np.ascontiguousarray(d["nodes"], np.float64)
         cells = np.asarray(d["cells"], np.int64)
 
-        nC = cells.shape[0]
-        vtk = np.empty((nC, 5), np.int64)
+        n_cells = cells.shape[0]
+        vtk = np.empty((n_cells, 5), np.int64)
         vtk[:, 0] = 4
         vtk[:, 1:] = cells
         grid = pv.UnstructuredGrid(
-            vtk.ravel(), np.full(nC, int(pv.CellType.TETRA), np.uint8), nodes)
+            vtk.ravel(), np.full(n_cells, int(pv.CellType.TETRA), np.uint8), nodes)
         surf = grid.extract_surface().clean()
 
         # 'three lights' gives volume; without it the part looks flat
@@ -111,8 +119,8 @@ def main():
 
         pl.enable_parallel_projection()         # faithful proportions between parts
         pl.view_isometric()
-        if args.angulo:
-            pl.camera.azimuth += args.angulo
+        if args.angle:
+            pl.camera.azimuth += args.angle
         pl.reset_camera()                       # frames the whole part...
         pl.camera.zoom(args.zoom)               # ...and leaves a margin around it
 
