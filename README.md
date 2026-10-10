@@ -17,8 +17,8 @@ University of São Paulo, 2026.
 - **Author:** Danilo Rizzo de Oliveira
 - **Advisor:** Prof. Dr. João Luís Garcia Rosa
 - **Co-advisor:** Prof. Dr. Alberto Costa Nogueira Junior
-- **Dataset and trained model:** https://doi.org/10.5281/zenodo.22981969
-  (version 1.0 holds the model of the submitted version; the final checkpoint is not yet archived)
+- **Dataset:** https://doi.org/10.5281/zenodo.22981969
+- **Final trained model:** https://doi.org/10.5281/zenodo.23287064
 
 ## Results
 
@@ -101,7 +101,7 @@ on a workstation and a rented T4.
 ## Data
 
 **55,803** finite element cases (FEniCSx, quadratic tetrahedra verified
-against cubic ones), archived at the DOI above in two forms: the complete
+against cubic ones), archived at the dataset DOI above in two forms: the complete
 set, and a set without the mesh connectivity, five times smaller and enough
 for training.
 
@@ -218,4 +218,4 @@ before the translation load unchanged.
 
 ## License
 
-Code: MIT (see `LICENSE`). Data: CC BY 4.0, as stated on the Zenodo record.
+Code: MIT (see `LICENSE`). Data and models: CC BY 4.0, as stated on the Zenodo records.
