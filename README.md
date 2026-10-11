@@ -19,6 +19,7 @@ University of São Paulo, 2026.
 - **Co-advisor:** Prof. Dr. Alberto Costa Nogueira Junior
 - **Dataset:** https://doi.org/10.5281/zenodo.22981969
 - **Final trained model:** https://doi.org/10.5281/zenodo.23287064
+- **Monograph (PDF):** https://github.com/danrizzoliv/deeponet-brackets/releases/download/Monograph/TCC_DaniloRizzo_MBA_IA_BigData.pdf
 
 ## Results
 
