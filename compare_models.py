@@ -3,7 +3,7 @@
 """
 Paired comparison of two models, case by case, on the same validation cases.
 
-    python compare_models.py delivered_val_errors.csv revised_val_errors.csv
+    python compare_models.py original_val_errors.csv revised_val_errors.csv
 
 The per-case CSVs are written by train_deeponet.py at the end of training
 ("<out>_val_errors.csv", columns file,family,relL2) or by

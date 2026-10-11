@@ -156,7 +156,7 @@ python train_deeponet.py --dataset dataset_v4_treino --device cuda \
   --final-eval 400 --resume --out final.pt
 ```
 
-The model of the submitted version (tag `tcc-2026`, relative L² 0.252) used
+The original model (tag `tcc-2026`, relative L² 0.252) used
 the plain MSE and only the two hole distances: drop `--edge-distance`,
 `--hole-proximity` and the two weighting options. It ran 3,187 epochs, at
 10⁻³ until epoch 989 and then resumed once with `--lr 3e-4`, which restarts
@@ -181,7 +181,7 @@ python diagnose_error.py --ckpt final.pt --dataset dataset_v4_treino   # error b
 | `concave_edges.py` | Recovers the concave edges of every case from the generator's seed, verified against the stored parameters. |
 | `bracket_dataset.py` | Branch and trunk encodings, distance features, normalization, PyTorch dataset. |
 | `train_deeponet.py` | The DeepONet, the stress-weighted loss, the training loop with resume, and the checkpoint loader. |
-| `train_colab.ipynb` | Training on a Colab GPU, resilient to session drops (final model, or that of the submitted version). |
+| `train_colab.ipynb` | Training on a Colab GPU, resilient to session drops (final model, or the original one). |
 | `inspect_cases.py` | Per-case figures, or a listing of every case with its error. |
 | `summarize_listing.py` | Per-family table from a listing. |
 | `evaluate_checkpoint.py` | Per-case validation error of a checkpoint, as CSV. |
@@ -195,8 +195,8 @@ python diagnose_error.py --ckpt final.pt --dataset dataset_v4_treino   # error b
 
 ## Versions and names
 
-The tag **`tcc-2026`** is the code of the version submitted to the examining
-committee, and **`tcc-2026-final`** that of the final version. In between, the stress-weighted loss and the edge and proximity
+The tag **`tcc-2026`** is the code of the original model, and
+**`tcc-2026-final`** that of the final version. In between, the stress-weighted loss and the edge and proximity
 features were added, and the code was translated: script names, option
 names (`--dist-furos` → `--hole-distances`, `--caso` → `--case`, `--lista` →
 `--listing`, `--grau` → `--degree`, ...), log lines and output files. The old

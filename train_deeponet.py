@@ -19,7 +19,7 @@ Revised model of the monograph (relative L2 0.193 on 8,370 validation cases):
         --eval-every 10 --save-every 10 --final-eval 400 --resume \\
         --epochs 4000 --lr 3e-4 --out revised.pt
 
-Delivered model (0.252): the same without the last three feature flags and
+Original model (0.252): the same without the last three feature flags and
 the two weighting options, as described in the README.
 
 Checkpoints written before the code was translated (Portuguese option

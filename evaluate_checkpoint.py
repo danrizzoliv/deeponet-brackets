@@ -3,12 +3,12 @@
 """
 Evaluates an already trained checkpoint (old or new format) on its own
 validation split, case by case, and writes the per-case CSV read by
-compare_models.py. This lets a model trained earlier (e.g. the delivered
+compare_models.py. This lets a model trained earlier (e.g. the original
 model) serve as one arm of a paired comparison without retraining it.
 
     python evaluate_checkpoint.py --ckpt deeponet_6fam_55k.pt \\
         --dataset ~/projetos/tcc_brackets/dataset_v4_treino \\
-        --csv delivered_val_errors.csv
+        --csv original_val_errors.csv
 
 The validation split is the one stored in the checkpoint, and the relL2 is
 the same as in train_deeponet.py (norm of the error over norm of the field,
